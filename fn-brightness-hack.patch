@@ -29,7 +29,7 @@ index 7a811ec..a71f90c 100644
 +    case 0x10: asus_map_key_clear(KEY_BRIGHTNESSDOWN);    break;
 +    case 0x20: asus_map_key_clear(KEY_BRIGHTNESSUP);    break;
 +    case 0x35: asus_map_key_clear(KEY_DISPLAY_OFF);        break;
-+    case 0x6b: asus_map_key_clear(KEY_TOUCHPAD_TOGGLE);    break;
++    case 0x6b; asus_map_key_clear(KEY_F21); break;
 +    case 0x6c: asus_map_key_clear(KEY_SLEEP);        break;
 +    case 0x88: asus_map_key_clear(KEY_RFKILL);        break;
 +    default:
