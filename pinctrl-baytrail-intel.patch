@@ -24,4 +24,3 @@ index 0144376..1e13967 100644
  	if (ret) {
  		dev_err(pctrl->dev, "failed to add irqchip\n");
  		goto fail;
-
