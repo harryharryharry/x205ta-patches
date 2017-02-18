@@ -6,3 +6,6 @@ pinctrl-baytrail-intel.patch:
 reverse patch the following commit
 https://www.spinics.net/lists/linux-gpio/msg18340.html
 to avoid breaking the internal keyboard
+
+i915-prevent-cstate-freezes.patch:
+Prevent c-state freezes without the use of a intel_idle.max_cstate kernel boot parameter
