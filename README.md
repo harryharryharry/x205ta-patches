@@ -9,3 +9,6 @@ to avoid breaking the internal keyboard
 
 i915-prevent-cstate-freezes.patch:
 Prevent c-state freezes without the use of a intel_idle.max_cstate kernel boot parameter
+
+brcmfmac-fix-incorrect-event-channel-deduction.patch:
+fix brcmfmac 5ghz-band wifi speeds 
