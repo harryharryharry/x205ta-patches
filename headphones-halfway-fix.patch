@@ -1,0 +1,27 @@
+diff --git a/sound/soc/codecs/rt5645.c b/sound/soc/codecs/rt5645.c
+index 0408086..3dba1b6 100644
+--- a/sound/soc/codecs/rt5645.c
++++ b/sound/soc/codecs/rt5645.c
+@@ -3242,11 +3242,21 @@ static void rt5645_jack_detect_work(struct work_struct *work)
+ 		val = snd_soc_read(rt5645->codec, RT5645_A_JD_CTRL1) & 0x0070;
+ 		break;
+ 	default: /* 1 port */
+-		val = snd_soc_read(rt5645->codec, RT5645_A_JD_CTRL1) & 0x0020;
++		//val = snd_soc_read(rt5645->codec, RT5645_A_JD_CTRL1) & 0x0020;
++		gpio_state = gpiod_get_value(rt5645->gpiod_hp_det);
++		printk(KERN_ERR "gpio_state = %d\n",
++		       gpio_state);
++
++		
++		val = snd_soc_read(rt5645->codec, RT5645_A_JD_CTRL1);
++		val = ~val;
++		val = val & 0x0020;
+ 		break;
+ 
+ 	}
+ 
++	printk(KERN_ERR "jack detect val %d \n", val);
++	
+ 	switch (val) {
+ 	/* jack in */
+ 	case 0x30: /* 2 port */
