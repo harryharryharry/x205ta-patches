@@ -1,0 +1,39 @@
+commit 6048d141021c65f96143028e398c36b302632198
+Author: Matjaz Hegedic <matjaz.hegedic@gmail.com>
+Date:   Sun Mar 5 18:39:18 2017 +0100
+
+    x86/reboot/quirks: add ASUS EeeBook X205TA/W reboot quirk
+    
+    Without the parameter reboot=a, ASUS EeeBook X205TA/W will hang
+    when it should reboot. This adds the appropriate quirk, thus
+    fixing the problem.
+    
+    Signed-off-by: Matjaz Hegedic <matjaz.hegedic@gmail.com>
+
+diff --git a/arch/x86/kernel/reboot.c b/arch/x86/kernel/reboot.c
+index e244c19..067f981 100644
+--- a/arch/x86/kernel/reboot.c
++++ b/arch/x86/kernel/reboot.c
+@@ -223,6 +223,22 @@ static struct dmi_system_id __initdata reboot_dmi_table[] = {
+			DMI_MATCH(DMI_BOARD_NAME, "P4S800"),
+		},
+	},
++       {       /* Handle problems with rebooting on ASUS EeeBook X205TA */
++               .callback = set_acpi_reboot,
++               .ident = "ASUS EeeBook X205TA",
++               .matches = {
++                       DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
++                       DMI_MATCH(DMI_PRODUCT_NAME, "X205TA"),
++               },
++       },
++       {       /* Handle problems with rebooting on ASUS EeeBook X205TAW */
++               .callback = set_acpi_reboot,
++               .ident = "ASUS EeeBook X205TAW",
++               .matches = {
++                       DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
++                       DMI_MATCH(DMI_PRODUCT_NAME, "X205TAW"),
++               },
++       },
+ 
+	/* Certec */
+	{       /* Handle problems with rebooting on Certec BPC600 */
