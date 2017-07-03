@@ -1,0 +1,12 @@
+--- a/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c	2017-05-05 01:15:38.645631371 -0700
++++ b/drivers/net/wireless/broadcom/brcm80211/brcmfmac/cfg80211.c	2017-05-05 00:39:38.485661242 -0700
+@@ -2741,6 +2741,9 @@ brcmf_cfg80211_set_power_mgmt(struct wip
+ 	struct brcmf_if *ifp = netdev_priv(ndev);
+ 
+ 	brcmf_dbg(TRACE, "Enter\n");
++    /* (*) */
++    enabled=false;
++    /* (*) */
+ 
+ 	/*
+ 	 * Powersave enable/disable request is coming from the
