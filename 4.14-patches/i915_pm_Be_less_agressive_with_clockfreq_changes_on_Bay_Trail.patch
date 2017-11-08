@@ -1,0 +1,46 @@
+i915: pm: Be less agressive with clockfreq changes on Bay Trail
+
+Bay Trail devices are known to hang when changing the frequency often,
+because of this we already skip modifying the hardware's GEN6_RP_UP/DOWN*
+registers on Bay Trail, but we are still using aggressive
+rps->up_threshold and rps->down_threshold-s which are used by the i915
+driver to calculate a new clockfreq and to call
+vlv_punit_write(PUNIT_REG_GPU_FREQ_REQ) with this new freq.
+
+This commit hardcodes to rps->up_threshold and down_threshold to less
+aggressive values, reducing the amount of clock frequency changes,
+thus avoiding the hangs some people have been reporting.
+
+Buglink: https://bugzilla.kernel.org/show_bug.cgi?id=109051
+Signed-off-by: Hans de Goede <hdegoede@redhat.com>
+
+Edit: change rps-> to dev_priv->rps.
+
+--- a/drivers/gpu/drm/i915/intel_pm.c	2017-11-07 23:16:45.107563000 -0700
++++ b/drivers/gpu/drm/i915/intel_pm.c	2017-11-07 23:30:44.711551478 -0700
+@@ -5966,9 +5966,13 @@ static void gen6_set_rps_thresholds(stru
+ 	/* When byt can survive without system hang with dynamic
+ 	 * sw freq adjustments, this restriction can be lifted.
+ 	 */
+-	if (IS_VALLEYVIEW(dev_priv))
+-		goto skip_hw_write;
+-
++	if (IS_VALLEYVIEW(dev_priv)) {
++		dev_priv->rps.power = new_power;
++		dev_priv->rps.up_threshold = 90; /* VLV_RP_UP_THRESHOLD */
++		dev_priv->rps.down_threshold = 70; /* VLV_RP_DOWN_THRESHOLD */
++		dev_priv->rps.last_adj = 0;
++		return;
++	}
+ 	I915_WRITE(GEN6_RP_UP_EI,
+ 		   GT_INTERVAL_FROM_US(dev_priv, ei_up));
+ 	I915_WRITE(GEN6_RP_UP_THRESHOLD,
+@@ -5989,7 +5993,6 @@ static void gen6_set_rps_thresholds(stru
+ 		   GEN6_RP_UP_BUSY_AVG |
+ 		   GEN6_RP_DOWN_IDLE_AVG);
+ 
+-skip_hw_write:
+ 	dev_priv->rps.power = new_power;
+ 	dev_priv->rps.up_threshold = threshold_up;
+ 	dev_priv->rps.down_threshold = threshold_down;
+
