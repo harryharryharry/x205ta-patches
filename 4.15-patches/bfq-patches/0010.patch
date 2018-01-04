@@ -1,0 +1,263 @@
+Signed-off-by: Adrian Hunter <adrian.hunter@intel.com>
+---
+ drivers/mmc/core/block.c | 129 ++++++++++++++++++++++++++++++++++++++---------
+ drivers/mmc/core/block.h |   1 +
+ drivers/mmc/core/host.h  |   5 ++
+ drivers/mmc/core/queue.c |   5 +-
+ drivers/mmc/core/queue.h |   1 +
+ include/linux/mmc/host.h |   1 +
+ 6 files changed, 116 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/mmc/core/block.c b/drivers/mmc/core/block.c
+index 7275ac5d6799..a710a6e95307 100644
+--- a/drivers/mmc/core/block.c
++++ b/drivers/mmc/core/block.c
+@@ -2131,6 +2131,22 @@ static void mmc_blk_mq_rw_recovery(struct mmc_queue *mq, struct request *req)
+ 	}
+ }
+ 
++static inline bool mmc_blk_rq_error(struct mmc_blk_request *brq)
++{
++	mmc_blk_eval_resp_error(brq);
++
++	return brq->sbc.error || brq->cmd.error || brq->stop.error ||
++	       brq->data.error || brq->cmd.resp[0] & CMD_ERRORS;
++}
++
++static inline void mmc_blk_rw_reset_success(struct mmc_queue *mq,
++					    struct request *req)
++{
++	int type = rq_data_dir(req) == READ ? MMC_BLK_READ : MMC_BLK_WRITE;
++
++	mmc_blk_reset_success(mq->blkdata, type);
++}
++
+ static void mmc_blk_mq_complete_rq(struct mmc_queue *mq, struct request *req)
+ {
+ 	struct mmc_queue_req *mqrq = req_to_mmc_queue_req(req);
+@@ -2213,14 +2229,43 @@ static void mmc_blk_mq_post_req(struct mmc_queue *mq, struct request *req)
+ 
+ 	mmc_post_req(host, mrq, 0);
+ 
+-	blk_mq_complete_request(req);
++	/*
++	 * Block layer timeouts race with completions which means the normal
++	 * completion path cannot be used during recovery.
++	 */
++	if (mq->in_recovery)
++		mmc_blk_mq_complete_rq(mq, req);
++	else
++		blk_mq_complete_request(req);
+ 
+ 	mmc_blk_mq_dec_in_flight(mq, req);
+ }
+ 
++void mmc_blk_mq_recovery(struct mmc_queue *mq)
++{
++	struct request *req = mq->recovery_req;
++	struct mmc_host *host = mq->card->host;
++	struct mmc_queue_req *mqrq = req_to_mmc_queue_req(req);
++
++	mq->recovery_req = NULL;
++	mq->rw_wait = false;
++
++	if (mmc_blk_rq_error(&mqrq->brq)) {
++		mmc_retune_hold_now(host);
++		mmc_blk_mq_rw_recovery(mq, req);
++	}
++
++	mmc_blk_urgent_bkops(mq, mqrq);
++
++	mmc_blk_mq_post_req(mq, req);
++}
++
+ static void mmc_blk_mq_complete_prev_req(struct mmc_queue *mq,
+ 					 struct request **prev_req)
+ {
++	if (mmc_host_done_complete(mq->card->host))
++		return;
++
+ 	mutex_lock(&mq->complete_lock);
+ 
+ 	if (!mq->complete_req)
+@@ -2254,29 +2299,56 @@ static void mmc_blk_mq_req_done(struct mmc_request *mrq)
+ 	struct request *req = mmc_queue_req_to_req(mqrq);
+ 	struct request_queue *q = req->q;
+ 	struct mmc_queue *mq = q->queuedata;
++	struct mmc_host *host = mq->card->host;
+ 	unsigned long flags;
+-	bool waiting;
+ 
+-	/*
+-	 * We cannot complete the request in this context, so record that there
+-	 * is a request to complete, and that a following request does not need
+-	 * to wait (although it does need to complete complete_req first).
+-	 */
+-	spin_lock_irqsave(q->queue_lock, flags);
+-	mq->complete_req = req;
+-	mq->rw_wait = false;
+-	waiting = mq->waiting;
+-	spin_unlock_irqrestore(q->queue_lock, flags);
++	if (!mmc_host_done_complete(host)) {
++		bool waiting;
+ 
+-	/*
+-	 * If 'waiting' then the waiting task will complete this request,
+-	 * otherwise queue a work to do it. Note that complete_work may still
+-	 * race with the dispatch of a following request.
+-	 */
+-	if (waiting)
++		/*
++		 * We cannot complete the request in this context, so record
++		 * that there is a request to complete, and that a following
++		 * request does not need to wait (although it does need to
++		 * complete complete_req first).
++		 */
++		spin_lock_irqsave(q->queue_lock, flags);
++		mq->complete_req = req;
++		mq->rw_wait = false;
++		waiting = mq->waiting;
++		spin_unlock_irqrestore(q->queue_lock, flags);
++
++		/*
++		 * If 'waiting' then the waiting task will complete this
++		 * request, otherwise queue a work to do it. Note that
++		 * complete_work may still race with the dispatch of a following
++		 * request.
++		 */
++		if (waiting)
++			wake_up(&mq->wait);
++		else
++			kblockd_schedule_work(&mq->complete_work);
++
++		return;
++	}
++
++	/* Take the recovery path for errors or urgent background operations */
++	if (mmc_blk_rq_error(&mqrq->brq) ||
++	    mmc_blk_urgent_bkops_needed(mq, mqrq)) {
++		spin_lock_irqsave(q->queue_lock, flags);
++		mq->recovery_needed = true;
++		mq->recovery_req = req;
++		spin_unlock_irqrestore(q->queue_lock, flags);
+ 		wake_up(&mq->wait);
+-	else
+-		kblockd_schedule_work(&mq->complete_work);
++		schedule_work(&mq->recovery_work);
++		return;
++	}
++
++	mmc_blk_rw_reset_success(mq, req);
++
++	mq->rw_wait = false;
++	wake_up(&mq->wait);
++
++	mmc_blk_mq_post_req(mq, req);
+ }
+ 
+ static bool mmc_blk_rw_wait_cond(struct mmc_queue *mq, int *err)
+@@ -2286,11 +2358,16 @@ static bool mmc_blk_rw_wait_cond(struct mmc_queue *mq, int *err)
+ 	bool done;
+ 
+ 	/*
+-	 * Wait while there is another request in progress. Also indicate that
+-	 * there is a request waiting to start.
++	 * Wait while there is another request in progress, but not if recovery
++	 * is needed. Also indicate whether there is a request waiting to start.
+ 	 */
+ 	spin_lock_irqsave(q->queue_lock, flags);
+-	done = !mq->rw_wait;
++	if (mq->recovery_needed) {
++		*err = -EBUSY;
++		done = true;
++	} else {
++		done = !mq->rw_wait;
++	}
+ 	mq->waiting = !done;
+ 	spin_unlock_irqrestore(q->queue_lock, flags);
+ 
+@@ -2334,10 +2411,12 @@ static int mmc_blk_mq_issue_rw_rq(struct mmc_queue *mq,
+ 	if (prev_req)
+ 		mmc_blk_mq_post_req(mq, prev_req);
+ 
+-	if (err) {
++	if (err)
+ 		mq->rw_wait = false;
++
++	/* Release re-tuning here where there is no synchronization required */
++	if (err || mmc_host_done_complete(host))
+ 		mmc_retune_release(host);
+-	}
+ 
+ out_post_req:
+ 	if (err)
+diff --git a/drivers/mmc/core/block.h b/drivers/mmc/core/block.h
+index f472ce5d5647..b126418fd163 100644
+--- a/drivers/mmc/core/block.h
++++ b/drivers/mmc/core/block.h
+@@ -13,6 +13,7 @@
+ 
+ enum mmc_issued mmc_blk_mq_issue_rq(struct mmc_queue *mq, struct request *req);
+ void mmc_blk_mq_complete(struct request *req);
++void mmc_blk_mq_recovery(struct mmc_queue *mq);
+ 
+ struct work_struct;
+ 
+diff --git a/drivers/mmc/core/host.h b/drivers/mmc/core/host.h
+index 6eaf558e62d6..8ca284e079e3 100644
+--- a/drivers/mmc/core/host.h
++++ b/drivers/mmc/core/host.h
+@@ -41,6 +41,11 @@ static inline int mmc_host_cmd23(struct mmc_host *host)
+ 	return host->caps & MMC_CAP_CMD23;
+ }
+ 
++static inline bool mmc_host_done_complete(struct mmc_host *host)
++{
++	return host->caps & MMC_CAP_DONE_COMPLETE;
++}
++
+ static inline int mmc_boot_partition_access(struct mmc_host *host)
+ {
+ 	return !(host->caps2 & MMC_CAP2_BOOTPART_NOACC);
+diff --git a/drivers/mmc/core/queue.c b/drivers/mmc/core/queue.c
+index 8d632d2f5199..d8394007bc99 100644
+--- a/drivers/mmc/core/queue.c
++++ b/drivers/mmc/core/queue.c
+@@ -165,7 +165,10 @@ static void mmc_mq_recovery_handler(struct work_struct *work)
+ 
+ 	mq->in_recovery = true;
+ 
+-	mmc_blk_cqe_recovery(mq);
++	if (mq->use_cqe)
++		mmc_blk_cqe_recovery(mq);
++	else
++		mmc_blk_mq_recovery(mq);
+ 
+ 	mq->in_recovery = false;
+ 
+diff --git a/drivers/mmc/core/queue.h b/drivers/mmc/core/queue.h
+index 1d7d3b0afff8..34f601c6dd39 100644
+--- a/drivers/mmc/core/queue.h
++++ b/drivers/mmc/core/queue.h
+@@ -103,6 +103,7 @@ struct mmc_queue {
+ 	bool			waiting;
+ 	struct work_struct	recovery_work;
+ 	wait_queue_head_t	wait;
++	struct request		*recovery_req;
+ 	struct request		*complete_req;
+ 	struct mutex		complete_lock;
+ 	struct work_struct	complete_work;
+diff --git a/include/linux/mmc/host.h b/include/linux/mmc/host.h
+index ce2075d6f429..f3e13c50f6b0 100644
+--- a/include/linux/mmc/host.h
++++ b/include/linux/mmc/host.h
+@@ -324,6 +324,7 @@ struct mmc_host {
+ #define MMC_CAP_DRIVER_TYPE_A	(1 << 23)	/* Host supports Driver Type A */
+ #define MMC_CAP_DRIVER_TYPE_C	(1 << 24)	/* Host supports Driver Type C */
+ #define MMC_CAP_DRIVER_TYPE_D	(1 << 25)	/* Host supports Driver Type D */
++#define MMC_CAP_DONE_COMPLETE	(1 << 27)	/* RW reqs can be completed within mmc_request_done() */
+ #define MMC_CAP_CD_WAKE		(1 << 28)	/* Enable card detect wake */
+ #define MMC_CAP_CMD_DURING_TFR	(1 << 29)	/* Commands during data transfer */
+ #define MMC_CAP_CMD23		(1 << 30)	/* CMD23 supported. */
+-- 
+1.9.1

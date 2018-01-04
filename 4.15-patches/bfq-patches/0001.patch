@@ -1,0 +1,19 @@
+Signed-off-by: Adrian Hunter <adrian.hunter@intel.com>
+---
+ drivers/mmc/core/queue.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/mmc/core/queue.c b/drivers/mmc/core/queue.c
+index 4f33d277b125..26f8da30ebe5 100644
+--- a/drivers/mmc/core/queue.c
++++ b/drivers/mmc/core/queue.c
+@@ -270,7 +270,6 @@ void mmc_cleanup_queue(struct mmc_queue *mq)
+ 
+ 	mq->card = NULL;
+ }
+-EXPORT_SYMBOL(mmc_cleanup_queue);
+ 
+ /**
+  * mmc_queue_suspend - suspend a MMC request queue
+-- 
+1.9.1

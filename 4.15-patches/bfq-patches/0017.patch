@@ -1,0 +1,26 @@
+Signed-off-by: Adrian Hunter <adrian.hunter@intel.com>
+---
+ drivers/mmc/core/block.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/mmc/core/block.c b/drivers/mmc/core/block.c
+index 46e63aec1fcb..9d323ed34f82 100644
+--- a/drivers/mmc/core/block.c
++++ b/drivers/mmc/core/block.c
+@@ -63,7 +63,13 @@
+ #endif
+ #define MODULE_PARAM_PREFIX "mmcblk."
+ 
+-#define MMC_BLK_TIMEOUT_MS  (10 * 60 * 1000)        /* 10 minute timeout */
++/*
++ * Set a 10 second timeout for polling write request busy state. Note, mmc core
++ * is setting a 3 second timeout for SD cards, and SDHCI has long had a 10
++ * second software timer to timeout the whole request, so 10 seconds should be
++ * ample.
++ */
++#define MMC_BLK_TIMEOUT_MS  (10 * 1000)
+ #define MMC_SANITIZE_REQ_TIMEOUT 240000
+ #define MMC_EXTRACT_INDEX_FROM_ARG(x) ((x & 0x00FF0000) >> 16)
+ 
+-- 
+1.9.1
