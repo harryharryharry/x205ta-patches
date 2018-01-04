@@ -14,3 +14,5 @@ fix_c-state_patchv4.15.patch (thanks to JbMaCaz)					;replace v3 cstate patch/ch
 fix-null-hwmon-info.patch								;suppresses deprecated hwmon warnings in dmesg
 
 i2c_touch_fix_initialize_delay.patch							;bug fix - start-up race condition
+
+rpmb.patch										;hide unnecessary mmcblkXrpmb block devices, which can cause hangups
