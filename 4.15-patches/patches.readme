@@ -1,0 +1,16 @@
+ASoC-rt5645-add-quirk-for-ASUS-EeeBook-X205TA.patch					                      ;add headphone support quirk for X205TA
+
+brcmfmac-p2p-and-normal-ap-access-are-not-always-possible-at-the-same-time.patch	;suppresses dmesg warnings
+
+Revert-several-pm-4.15-rc1-merges-for-low-power-suspend(-2-rc6).patch			        ;4.14 seems to have deeper sleep capabilities than previous kernels (the led light goes out during suspend)
+											                                                            ;but with the merge of pm-4.15-rc1:
+											                                                            ;https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/?h=next-20171204&id=bd2cd7d5a8f83ddc761025f42a3ca8e56351a6cc
+											                                                            ;this capability seems lost again. I had to reverted several files to enable deeper sleep again during suspend.
+
+fix_c-state_patchv4.15.patch (thanks to JbMaCaz)                                  ;replace v3 cstate patch/changes with original v1 that works 
+											                                                            ;stops cstate freezes w/o scripts or kernel args (99.44%)
+											                                                            ;see also bugzilla 109051
+
+fix-null-hwmon-info.patch								                                          ;suppresses deprecated hwmon warnings in dmesg
+
+i2c_touch_fix_initialize_delay.patch							                                ;bug fix - start-up race condition
