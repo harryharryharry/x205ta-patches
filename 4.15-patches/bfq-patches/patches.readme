@@ -1,2 +1,8 @@
 These patches are still preliminary, use with caution.
 https://lkml.org/lkml/2017/11/29/451
+
+Once you compiled the kernel with these patches applied, enable BFQ at boot with:
+echo "ACTION==\"add|change\", KERNEL==\"mmcblk1\", ATTR{queue/scheduler}=\"bfq\"" | sudo tee /etc/udev/rules.d/60-scheduler.rules
+
+or for the duration of the session (until reboot) with:
+echo bfq | sudo tee /sys/block/mmcblk1/queue/scheduler
