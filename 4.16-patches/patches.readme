@@ -1,4 +1,4 @@
-ASoC-rt5645-add-quirk-for-ASUS-EeeBook-X205TA-4.16.patch	                  ;add headphone support quirk for X205TA
+ASoC-rt5645-add-quirk-for-ASUS-EeeBook-X205TA-4.16.patch	                   ;add headphone support quirk for X205TA
 allow-s0i3-suspend-unified-4.16.patch                                               ;my own dirty hacky patch to get power efficient s0i3 suspend working on 4.16
 brcmfmac-p2p-and-normal-ap-access-are-not-always-possible-at-the-same-time.patch    ;suppresses dmesg warnings
 i915-pm-Be-less-agressive-with-clockfreq-changes-on-Bay-Trail.patch                 ;Hans de Goede's patch to prevent c-state related freezes (part 1)
